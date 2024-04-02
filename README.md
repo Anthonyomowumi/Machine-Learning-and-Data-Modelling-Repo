@@ -25,3 +25,7 @@ Boruta Plot showing the important features in green, unimportant ones in red and
 The outcome variable (Diagnosis) was checked for proportionality and found to be imbalanced with class 1(HC) having 609 and class 2 (non-HC) having 253. Using Synthetic Minority Over-Sampling Technique (SMOTE) and k set to 3, the data was balanced to 609 (HC) and 506 (non-HC) respectively
 ![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/5efcdeae-07a7-4c0b-8270-88420aac82f2)
 
+
+## III. Model Training and Test
+The data was divided into 70% (780) Train and 30% (335) Test. The model fitting was done using 3 supervised machine learning algorithms: Random Forest (RF), Support Vector Machine (SVM – Untuned and Tuned SVM), and K-Nearest Neighbor (KNN). Also, an unsupervised learning algorithm namely K-Means. Observations can be grouped into k groups using K-means clustering depending on how similar they are.
+
