@@ -20,3 +20,8 @@ Correlation plot of the features and collinearity
 ### b)Feature Selection using Boruta Algorithm
 ![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/aa49ceca-c75a-402c-9f39-c8a56da958e0)
 Boruta Plot showing the important features in green, unimportant ones in red and shadow attributes in blue.
+
+### c) Data Distribution
+The outcome variable (Diagnosis) was checked for proportionality and found to be imbalanced with class 1(HC) having 609 and class 2 (non-HC) having 253. Using Synthetic Minority Over-Sampling Technique (SMOTE) and k set to 3, the data was balanced to 609 (HC) and 506 (non-HC) respectively
+![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/5efcdeae-07a7-4c0b-8270-88420aac82f2)
+
