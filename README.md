@@ -15,6 +15,7 @@ An efficient data mining approach was used to analyse the AIBL dataset.
 
 ### a) Data Preprocessing which involves data cleaning and selection, outliers detection and error detection, missing value imputation and correlation co-efficient***** 
 ![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/83d47fb9-894e-4a08-b6f2-b1f32ebd0e08)
+Correlation plot of the features and collinearity
 
 ### b)Feature Selection using Boruta Algorithm
 ![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/aa49ceca-c75a-402c-9f39-c8a56da958e0)
