@@ -1,0 +1,441 @@
+---
+title: "CLASSIFICATION OF ALZHEIMER’S DISEASE USING MACHINE LEARNING APPROACH"
+name: "Anthony Omowumi"
+BNumber: "B00892305" 
+CourseWork: "Machine Learning and Data Modelling - COM737" 
+output:
+  html_document: default
+  word_document: default
+date: "2023-04-26"
+---
+
+```{r}
+options(knitr.duplicate.label = "allow")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1.0 IMPORTING NECESSARY LIBRARIES FOR THE ANALYSIS
+```{r}
+
+library(editrules)
+library(skimr)
+library(randomForest)
+library(dplyr)
+library(data.table)
+library(Publish)
+library(MLmetrics)
+library(smotefamily)
+library(ROCR)
+library(caTools)
+library(ggplot2)
+library(corrplot)
+library(Boruta)
+library(missForest)
+library(caret)
+library(e1071)
+
+```
+
+#1.1 IMPORTING YOUR DATASET INTO R
+```{r}
+AIBL <- read.csv("AIBL.csv",header=T, stringsAsFactors = F)
+AIBL
+```
+#1.2 Performing Descritpive Statistics about the dataset
+```{r}
+#View(AIBL) #To open and view the dataset in a dataframe format opening as a table
+names(AIBL) #To check for column names
+str(AIBL) #To check the structure of the dataset
+sapply(AIBL, class) #Viewing the column names and datatypes
+dim(AIBL) #This shows the dimension of the dataset in columns and rows
+summary(AIBL) #Gives the statistical summary of the dataset in terms of min,max, median, 1Q and 3Q.
+```
+
+#1.3 Conducting data pre-processing on the dataset
+```{r}
+AIBL <- subset(AIBL, select = -c(RID)) #This column was dropped because it is just a numbering column not relevant to the study
+AIBL_1 <- AIBL #Saving it into another data frame in order to perform the necessary data pre-processing and also retent the data provenance
+
+AIBL_1$Diagnosis[AIBL_1$Diagnosis == 3]<- 2 #MCI and AD is merged into one category. 1 for HC (Healthy Control) and 2 for non-HC (Non-Healthy Control) factor.
+
+
+library(data.table)
+setDT(AIBL_1)
+AIBL_1[, MMSCORE:= cut(MMSCORE,
+            breaks = c(0,9,20,24,30),
+            include.lowest = T,
+            labels = c("4","3","2","1"))] # 1 belongs to the category normal(30-25), 2 belongs to the category mild/early(24-21), 3 belong to the category moderate(20-10) while 4 mbelongs to the category severe (9-0)
+
+class(AIBL_1$MMSCORE) #Checking the class of the column MMSCORE after the preprocessing
+AIBL_1[, table(MMSCORE)] #The variable was grouped into their different categories
+
+
+library("tidyr")
+library("dplyr")
+AIBL_1 <- AIBL_1 %>% 
+  mutate_if(is.numeric, ~replace(., . == -4, NA)) #Replacing all the columns with -4, missing values with NA
+
+AIBL_1$Diagnosis[AIBL_1$Diagnosis == 7]<- NA #Use to replace 7 which is a missing/inaccurate value with NA
+
+#Storing into another dataframe after the preprocessing has been done.
+AIBL1 <- AIBL_1 
+AIBL1
+
+sum(is.na(AIBL1)) #To get the sum of na's in the preprocessed data. this is equal to 1258
+summary(AIBL1) #MH16SMOK shows the highest number of NA's and also the summary shows that not all the datapoint in the columns belongs to the same scale using the min and max values as reference. Hence, before model fitting the data columns would be scale/normalize.
+
+
+#Identifying special values in the dataset
+is.finite(c(Inf, NaN)) #checking for Special values (Inf, NA and NaN) and correcting it.
+is.special <- function(x){
+  if (is.numeric(x)) !is.finite(x) else is.na(x)
+} #special characters. function define
+
+sapply(AIBL1, is.special)  #Special character detection in the dataset.
+AIBL1[mapply(is.special, AIBL1)] <- NA #Applying NA to any special characters if present.
+
+
+#Showing the outliers using boxplot.
+Boxplot_Outliers_Detection <- subset(AIBL1, select = -c(Diagnosis))
+boxplot(Boxplot_Outliers_Detection,cex.axis=.3, col="gray",horiz=F, dotplot=FALSE) #The boxplot shows that BAT126 has the highest outliers while others are mild, still within the Interquartile range.
+
+
+```
+
+#2.0 Performing a Missing data imputation using RandomForest Algorithm
+```{r}
+AIBL1 <- AIBL1 %>% mutate(across(c(PTGENDER, MHPSYCH, MH2NEURL, MH4CARD, MH6HEPAT, MH8MUSCL, MH9ENDO, MH10GAST,MH12RENA, MH16SMOK, MH17MALI, APGEN1, APGEN2, CDGLOBAL,MMSCORE,LIMMTOTAL, LDELTOTAL, Diagnosis ), as.factor)) #Defining the data type of the feature column
+
+str(AIBL1)
+dim(AIBL1)
+
+#Perfroming missing values imputation using Random Forest library(missForest)
+set.seed(12345) #This allows for reproducibility 
+AIBL1.imp <- missForest(AIBL1, verbose = T)
+AIBL1.imp$OOBerror #After 3 iteration training, the final NMRSE(True normalized root mean squared error) obtained is 0.4859566 and PFC was 0.2674520. OOBerror is the imputation error estimates made to understand the quality of an imputation.
+
+names(AIBL1.imp)
+AIBL1.imp$ximp
+
+summary(AIBL1.imp$ximp)
+dim(AIBL1.imp$ximp)
+str(AIBL1.imp$ximp)
+
+sum(is.na(AIBL1.imp$ximp)) #zero na value after the imputation
+
+table(AIBL1.imp$ximp$Diagnosis) # Checking for class size after imputation
+prop.table(table(AIBL1.imp$ximp$Diagnosis)) #Diagnosis 01is 71% while Diagnosis 2 is 29%
+```
+
+
+#2.1 Visualising the dataset and find for Multicollinearity between the dataset
+```{r}
+#BOXPLOT for Age of Patient's vs Diagnosis
+
+boxplot(list(AIBL1.imp$ximp$Age[AIBL1.imp$ximp$Diagnosis==1], AIBL1.imp$ximp$Age[AIBL1.imp$ximp$Diagnosis==2]), col = "gray", xlab="Diagnosis", ylab="Patient's Age", main="Boxplot for Patient's Age vs Diagnosis") #The boxplot shows that people with other age bracket are most likely to be in Non-HC category of diagnosis..
+
+hist(AIBL1.imp$ximp$Age, breaks=10, col = "gray", border = "white")
+```
+
+#2.2 Correlation checks within the Features before Variable Feature selection
+```{r}
+AIBL2 <- AIBL1.imp$ximp #Saving AIBL.imp as AIBL2
+
+table(sapply(AIBL2, is.factor)) #This shows the number of factor columns in the dataframe
+AIBL2 <- sapply(AIBL2, as.numeric)
+sapply(AIBL2, class)
+
+AIBL2 <- as.data.frame(AIBL2)
+
+#Correlation plot only works with numerical value that is why all the non-numerical value is coerced into a numerical values
+library(corrplot)
+CorrMatrix <- round(cor(AIBL2[,1:31]),2)
+CorrMatrix
+
+corrplot(CorrMatrix, method = 'circle', order = "hclust", addrect = 4)
+
+CorrMatrix[CorrMatrix < 0.8 | CorrMatrix ==1] <- "" #This shows there is high correlation between CDGLOBAL, LIMMTOTAL, LDELTOTAL, DIAGNOSIS, HMT40, HMT3. Further analysis would be conducted to find the important features for the analysis(Variable selection)
+```
+
+#2.3 Feature Selection using Boruta Algorithm 
+```{r}
+library(Boruta)
+library(mlbench)
+library(caret)
+library(randomForest)
+
+set.seed(123)
+AIBL2_Boruta <- Boruta(Diagnosis ~., data = AIBL2, doTrace=2, maxRuns = 500) #9 attributes were choosen as important
+
+print(AIBL2_Boruta)
+plot(AIBL2_Boruta, las=2, cex.axis=0.5) #Computes the z scores of the Confirmed, Rejected and Tentative attributes in the selection
+
+plotImpHistory(AIBL2_Boruta)
+
+#FIXING THE TENTATIVE ATTRIBUTE
+#The tentative attributes will be classified as confirmed or rejected by comparing the median Z score of the attributes with the median Z score of the best shadow attribute.
+
+final_bor <- TentativeRoughFix(AIBL2_Boruta)
+print(final_bor)
+plot(final_bor, las=2, cex.axis =.5)#Shows that 12 attributes has been choosen as important features.
+
+getSelectedAttributes(final_bor, withTentative = F)
+attStats(AIBL2_Boruta)
+
+
+SelectedAttributes <- c(1, 4, 13, 17, 20, 22, 25, 26, 27, 28, 29, 30, 31) #Selected Boruta algorithm for important feature and diagnosis(response variable/predictor)
+
+AIBL2_new <- AIBL2[, SelectedAttributes] %>% mutate(across(c(PTGENDER, MH2NEURL, APGEN1, CDGLOBAL,MMSCORE,LIMMTOTAL, LDELTOTAL, Diagnosis), as.factor)) #Coercing the data type back for model building and adding the diagnosis column to it.
+
+class(AIBL2_new)
+names(AIBL2_new)
+dim(AIBL2_new)
+str(AIBL2_new)
+
+
+#Scale the 5 numeric features in the selected attribute data frame
+AIBL2_new$HMT3 <- (AIBL2_new$HMT3 - min(AIBL2_new$HMT3)) / (max(AIBL2_new$HMT3) - min(AIBL2_new$HMT3))
+AIBL2_new$HMT40 <- (AIBL2_new$HMT40 - min(AIBL2_new$HMT40)) / (max(AIBL2_new$HMT40) - min(AIBL2_new$HMT40))
+AIBL2_new$HMT102 <- (AIBL2_new$HMT102 - min(AIBL2_new$HMT102)) / (max(AIBL2_new$HMT102) - min(AIBL2_new$HMT102))
+AIBL2_new$RCT20 <- (AIBL2_new$RCT20 - min(AIBL2_new$RCT20)) / (max(AIBL2_new$RCT20) - min(AIBL2_new$RCT20))
+AIBL2_new$RCT392 <- (AIBL2_new$RCT392 - min(AIBL2_new$RCT392)) / (max(AIBL2_new$RCT392) - min(AIBL2_new$RCT392))
+
+str(AIBL2_new)
+#View(AIBL2_new)
+
+#Boruta performed 499 iterations in 2.031299 mins.
+#9 attributes confirmed important: APGEN1, CDGLOBAL, HMT102, HMT3, HMT40 and 4 more;
+#18 attributes confirmed unimportant: Age, APGEN2, AXT117, BAT126, HMT100 and 13 more;
+#3 tentative attributes left: MH2NEURL, PTGENDER, RCT392;
+```
+
+#2.4 Checking data Proportion and balancing the data using SMOTE
+```{r}
+table(AIBL2_new$Diagnosis) # Checking for class size 1 is 609(HC) and Non-HC is 253
+prop.table(table(AIBL2_new$Diagnosis)) #Outcome 1 is 71% while outcome 2 is 29%. This is an imbalance data.
+
+AIBL2_new <- sapply(AIBL2_new, as.numeric)
+sapply(AIBL2_new, class)
+
+AIBL2_new <- as.data.frame(AIBL2_new)
+
+#SMOTE was used to balance the Outcome class
+Diagnosis_balancing <- SMOTE(AIBL2_new[-13], 
+              as.numeric(AIBL2_new$Diagnosis),
+              K = 3, dup_size = 1) 
+str(Diagnosis_balancing)
+
+AIBL.new.data <- bind_cols(Diagnosis_balancing$data[13], Diagnosis_balancing$data[-13])
+str(AIBL.new.data)
+
+# Make dependent variable as a factor (categorical).
+AIBL.new.data$class = as.factor(AIBL.new.data$class)
+#Set the label colname back to "Outcome".
+names(AIBL.new.data)[1]<- "Diagnosis"
+names(AIBL.new.data)
+
+# Check types of variables and class sizes.
+str(AIBL.new.data)
+class(AIBL.new.data$Diagnosis)
+table(AIBL.new.data$Diagnosis)
+prop.table(table(AIBL.new.data$Diagnosis)) #After Smote has been done class 1 is now 55% and class 2 is now 45%
+
+barplot(table(AIBL.new.data$Diagnosis), main = "Diagnosis Count After SMOTE", xlab = "Diagnosis", ylab= "Count", border = "white", col="gray")
+
+```
+
+#3.0 SPLITTING DATASET INTO TRAINING AND TESING
+
+```{r}
+
+# Splitting the dataset into the Training set and Test set
+# install.packages('caTools')
+AIBL.new.data$Diagnosis <- as.factor(AIBL.new.data$Diagnosis)
+set.seed(123)
+split = sample.split(AIBL.new.data$Diagnosis, SplitRatio = 0.7)
+AIBL_training = subset(AIBL.new.data, split == TRUE)
+AIBL_test = subset(AIBL.new.data, split == FALSE)
+dim(AIBL_training) #780 13
+dim(AIBL_test) #335 13
+AIBL_training$Diagnosis<- as.factor(AIBL_training$Diagnosis)
+AIBL_test$Diagnosis<- as.factor(AIBL_test$Diagnosis)
+
+```
+
+#3.1 MODEL FITTING USING RANDOM FOREST ALGORITHM - TRAINING & TESTING
+```{r}
+#Random Forest
+
+# Train and tune the random forest (rf) algorithm on the training data.
+library(randomForest)
+
+# Find the optimal value of mtry.
+set.seed(123) 
+mtry <- tuneRF(AIBL_training[-1],AIBL_training$Diagnosis, ntreeTry=500,
+               stepFactor=1.5,improve=0.01, trace=TRUE, plot=TRUE)
+
+best.m <- mtry[mtry[, 2] == min(mtry[, 2]), 1] #Is used to compute the best mtry for RF algorthm
+
+print(mtry) 
+print(best.m)
+
+#Apply random forest (rf) with the optimal value of mtry.
+set.seed(123)
+random_forest_model<-randomForest(Diagnosis~.,data=AIBL_training, mtry=best.m, importance=TRUE,ntree=500) #Training the RF with the optimal value of mtry..
+print(random_forest_model) #4.36% error rate.  it means there was 4.49% out of Bag error rate..
+plot(random_forest_model)
+
+importance(random_forest_model)
+varImpPlot(random_forest_model)
+
+library("caret")
+library(MLmetrics)
+
+pred <- predict(random_forest_model, newdata = AIBL_test) #Predicting the Test set results.
+
+cm <- ConfusionMatrix(pred, AIBL_test$Diagnosis) # Storing the Confusion Matrix
+(Classification.Accuracy <- 100*Accuracy(pred, AIBL_test$Diagnosis))# Model Accuracy = 97.01%
+l <- table(AIBL_test$Diagnosis, pred) 
+confusionMatrix(l, mode = "everything")# Recall = 96.26% and F1 Score = 97.30%
+
+#Prediction and Calculate Performance Metrics
+pred_1<-predict(random_forest_model,newdata = AIBL_test,type = "prob")
+
+#library(ROCR)
+(p <- prediction(pred_1[,2], AIBL_test$Diagnosis))
+
+# 0. Accuracy.
+(acc = performance(p, "acc"))
+plot(acc,main="Accurcay Curve for Random Forest",col=2,lwd=2)
+
+# 1. Area under curve
+auc <- performance(p, "auc") #The AUC is 98.99%
+auc@y.values[[1]]
+
+# 2. True Positive and Negative Rate
+pred_3 <- performance(p, "tpr","fpr")
+
+# 3. Plot the ROC curve
+plot(pred_3,main="ROC Curve for Random Forest",col=2,lwd=2)
+abline(a=0,b=1,lwd=2,lty=2,col="purple")
+
+```
+
+#3.2 MODEL FITTING USING SUPPORT VECTOR MACHINE
+```{r}
+#Using SVM
+#1. FITTING THE MODEL WITHOUT setting the gamma and cost(regularization)
+# Fit the SVM model with the radial kernel using gamma and cost equals to 1. 
+library(e1071)
+
+set.seed(123)
+svm.model.radial <- svm(Diagnosis ~ ., data = AIBL_training, kernel = 'radial', gamma=1, cost=1)
+svm.model.radial
+summary(svm.model.radial)
+
+# Find false positives and false negatives for the radial SVM
+table(Prediction = predict(svm.model.radial, AIBL_training),Truth = AIBL_training$Diagnosis)
+#Predicting using test dataset
+y_pred = predict(svm.model.radial, newdata = AIBL_test)
+y_pred
+#Confusion Matrix
+cm1= table(AIBL_test[, 1], y_pred)
+cm1 
+confusionMatrix(cm1, mode = "everything")
+
+
+#Tuning the regularization and Gamma but using the same Kernel RBF
+set.seed(123)
+tuned.svm <- tune(svm, Diagnosis ~., data = AIBL_training,kernel="radial",ranges=list(cost=c(0.001, 0.01, 0.1, 1,5,10,100)), gamma=c(0.5,1,2,3,4))
+tuned.svm
+summary(tuned.svm)
+
+# Showing the best model obtained
+bestmodel <- tuned.svm$best.model
+summary(bestmodel)
+
+y_pred.tuned= predict(bestmodel, newdata = AIBL_test)
+y_pred.tuned
+cm= table(AIBL_test[, 1], y_pred.tuned)
+cm
+
+confusionMatrix(cm, mode = "everything")
+```
+
+#3.3 MODEL FITTING USING K-NEAREST NEIHGBOUR
+```{r}
+#Using KNN
+library(mlbench)
+
+# Fit the model on the training set
+set.seed(123)
+knn.model <- train(
+  Diagnosis ~., data = AIBL_training, method = "knn",
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 20
+)
+
+# Plot model accuracy vs different values of k
+plot(knn.model)
+
+# Print the best tuning parameter k that
+# maximizes model accuracy
+knn.model$bestTune
+
+# Make predictions on the test data
+predicted.classes <- knn.model %>% predict(AIBL_test)
+head(predicted.classes)
+
+m <- table(AIBL_test$Diagnosis, predicted.classes) 
+confusionMatrix(m, mode = "everything") 
+
+# Compute model accuracy rate
+mean(predicted.classes == AIBL_test$Diagnosis)
+```
+
+#3.4 UNSUPERVISED LEARNING USING K-MEANS
+```{r}
+#Doing Kmeans Clustering
+#install.packages("stats")
+#install.packages("ggfortify")
+library("stats")
+library("ggfortify")
+
+
+mydata = select(AIBL.new.data, c(2:13)) #unlabelling was done for dataset because we are dealing with unsupervised learning. 
+View(mydata)
+
+#wss plot function
+wssplot <- function(data, nc=15, seed=1234)
+{
+  wss<- (nrow(data) -1) * sum(apply(data, 2, var))
+  for (i in 2:nc) {
+    set.seed(seed)
+    wss [i] <- sum(kmeans(data, centers = i)$withinss)
+  }
+  plot(1:nc, wss,type="b", xlab="Number of clusters", ylab="Within groups sum of squares")
+  
+}
+
+wssplot(mydata)#To chosen the optimal values
+
+#k-Means Cluster
+KM.1 <- kmeans(mydata, 2) #The elbow method gives a optimal value between 2 and 3. So 2 was chosen 
+KM.1
+#Cluster Plot
+autoplot(KM.1, mydata, frame=TRUE) 
+
+KM.2 <- kmeans(mydata, 3) 
+#Cluster Plot
+autoplot(KM.2, mydata, frame=TRUE)
+
+
+#Evaluating Cluster Analysis
+KM.1$centers #The centers of all the features indicates they are distinct in nature and no overlap. Looking at the plot, it shows the same distinctiveness and no overlapping of the faetures. 
+
+table(KM.1$cluster, AIBL.new.data$Diagnosis)
+
+```
+
+
+
