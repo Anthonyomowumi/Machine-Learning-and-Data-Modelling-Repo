@@ -29,3 +29,5 @@ The outcome variable (Diagnosis) was checked for proportionality and found to be
 ## III. Model Training and Test
 The data was divided into 70% (780) Train and 30% (335) Test. The model fitting was done using 3 supervised machine learning algorithms: Random Forest (RF), Support Vector Machine (SVM – Untuned and Tuned SVM), and K-Nearest Neighbor (KNN). Also, an unsupervised learning algorithm namely K-Means. Observations can be grouped into k groups using K-means clustering depending on how similar they are.
 
+## IV. Experimental Result and Discussion
+
