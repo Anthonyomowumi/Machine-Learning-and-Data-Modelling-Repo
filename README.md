@@ -30,4 +30,20 @@ The outcome variable (Diagnosis) was checked for proportionality and found to be
 The data was divided into 70% (780) Train and 30% (335) Test. The model fitting was done using 3 supervised machine learning algorithms: Random Forest (RF), Support Vector Machine (SVM – Untuned and Tuned SVM), and K-Nearest Neighbor (KNN). Also, an unsupervised learning algorithm namely K-Means. Observations can be grouped into k groups using K-means clustering depending on how similar they are.
 
 ## IV. Experimental Result and Discussion
+The best-predicting model was Random Forest with an Accuracy of 97%, Recall of 96%, AUC of 98.99%, and ROC Curve closer to 1, fitting only 12 features out of the 31 features. 
+
+![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/8f76ae2e-4b9f-4a14-af6e-9d49f406f04d)
+Model Performance Evaluation chart
+
+![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/db124dc5-de31-47bd-97ae-b5cde5e6bf00)
+The ROC Curve for Random Forest Model
+
+
+Also, the K means algorithm was able to distinctively create the clusters after the optimal value for k was chosen using the Within Sum of Squares (WSS/Elbow Plot). The cluster means was uniquely classified with little or no overlapping of the clusters.
+![image](https://github.com/Anthonyomowumi/Machine-Learning-and-Data-Modelling-Repo/assets/93340041/e6e4c8d7-3dd9-492c-b953-b902e100e4d1)
+Cluster Plot after k optimal value has been obtained by wss/elbow method using k=2
+
+
+
+
 
